@@ -1,0 +1,61 @@
+# Parcial 3, parte 2: Odoo 18.0 (desde su repositorio) + PostgreSQL 18 con Docker,
+# para ABC, empresa peruana (es_PE, PEN, plan contable PCGE, IGV 18 %).
+#   copy .env.example .env           primera vez: poner contraseñas propias en .env
+#   docker compose up -d --build     construye y arranca
+#   http://localhost:8071            Odoo (usuario admin / ODOO_ADMIN_PASSWORD de .env)
+#   docker compose logs -f odoo      ver el log
+#   docker compose down              detiene (los datos quedan en los volúmenes)
+#   docker compose down -v           ¡BORRA también las bases y adjuntos!
+# Puertos distintos de la instalación local (8070) y del Odoo 19 de binarios (8069 / 5432).
+name: odoo-abc
+
+services:
+  db:
+    # Misma versión mayor que el PostgreSQL instalado en Windows (18).
+    image: postgres:18
+    environment:
+      POSTGRES_USER: odoo
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Copie .env.example a .env y ponga sus contraseñas}
+      POSTGRES_DB: postgres
+      # UTF8 explícito: evita el problema de codificación WIN1252 visto en Windows.
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C.UTF-8"
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT:-5433}:5432"
+    volumes:
+      # Desde la imagen 18 el volumen va en /var/lib/postgresql (los datos quedan en 18/docker).
+      - pg-datos:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U odoo -d postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  odoo:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      args:
+        ODOO_BRANCH: "18.0"
+    image: odoo-abc:18.0
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DB_PASSWORD: ${POSTGRES_PASSWORD:?Copie .env.example a .env y ponga sus contraseñas}
+      ODOO_MASTER_PASSWORD: ${ODOO_MASTER_PASSWORD:?Copie .env.example a .env y ponga sus contraseñas}
+      ODOO_ADMIN_PASSWORD: ${ODOO_ADMIN_PASSWORD:?Copie .env.example a .env y ponga sus contraseñas}
+      EMPRESA_NOMBRE: ${EMPRESA_NOMBRE:-ABC}
+      # wkhtmltopdf baja los estilos de los PDF desde Odoo dentro del propio contenedor.
+      ODOO_REPORT_URL: http://localhost:8069
+    ports:
+      - "127.0.0.1:${ODOO_PORT:-8071}:8069"
+    volumes:
+      - odoo-datos:/var/lib/odoo
+      # Módulos propios (Parcial 4): se editan en ODOO-ABC/addons sin reconstruir la imagen.
+      - ../addons:/mnt/extra-addons
+    restart: unless-stopped
+
+volumes:
+  pg-datos:
+  odoo-datos:

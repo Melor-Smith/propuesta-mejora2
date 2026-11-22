@@ -1,0 +1,4 @@
+# Los .bat necesitan fin de línea de Windows.
+*.bat text eol=crlf
+# Los scripts que corren dentro del contenedor Linux necesitan fin de línea Unix.
+*.sh text eol=lf

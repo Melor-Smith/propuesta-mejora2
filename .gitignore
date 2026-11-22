@@ -1,0 +1,11 @@
+# Código de Odoo 18.0: se descarga del repositorio oficial (clonar_odoo.bat), no se versiona aquí.
+fuente/
+# Entorno virtual de Python y datos locales de Odoo
+.venv/
+datos/
+*.log
+__pycache__/
+*.pyc
+
+# Contraseñas reales de Docker (la plantilla docker/.env.example sí se versiona)
+.env

@@ -1,0 +1,5 @@
+# La imagen clona Odoo desde GitHub: del proyecto solo necesita estos archivos.
+*
+!docker/odoo.conf
+!docker/entrypoint.sh
+!peru/configurar_peru.py
