@@ -9,3 +9,5 @@ __pycache__/
 
 # Contraseñas reales de Docker (la plantilla docker/.env.example sí se versiona)
 .env
+# Contraseña de PostgreSQL de la instalación local (la plantilla pgpass.conf.example sí se versiona)
+pgpass.conf

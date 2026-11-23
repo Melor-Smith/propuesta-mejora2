@@ -50,9 +50,15 @@ Para pruebas, un RUC con dígito verificador válido es `20123456786`.
 ODOO-ABC\
 ├── README.md
 ├── clonar_odoo.bat       paso 1 local: clona Odoo 18.0 y prepara .venv con sus dependencias
-├── iniciar_odoo.bat      paso 2 local: arranca Odoo con odoo.conf
-├── configurar_peru.bat   paso 3 local: localización Perú
+├── crear_base.bat        paso 2 local: crea la base abc en UTF8 desde template0
+├── iniciar_odoo.bat      paso 3 local: arranca Odoo con odoo.conf
+├── configurar_peru.bat   paso 4 local: localización Perú
 ├── odoo.conf             configuración local (sin contraseñas)
+├── pgpass.conf.example   plantilla de la contraseña de PostgreSQL (se versiona)
+├── pgpass.conf           contraseña real de odoo18 (NO se versiona)
+├── bd\
+│   ├── crear_base.py       CREATE DATABASE explícito: template0, UTF8, mismo locale en collate y ctype
+│   └── quitar_trust.ps1    pasa a odoo18 de trust a contraseña (equipos que ya estaban en trust)
 ├── peru\
 │   └── configurar_peru.py  idioma, país, moneda y módulos peruanos (local y Docker)
 ├── addons\               módulos propios, p. ej. el del Parcial 4
@@ -65,7 +71,7 @@ ODOO-ABC\
 │   └── .env                contraseñas reales (NO se versiona)
 ├── .dockerignore         la imagen solo recibe docker\ y peru\
 ├── evidencia\            capturas
-├── presentacion\         diapositivas
+├── presentacion\         parcial3-odoo18-peru.pptx (13 diapositivas, con notas del orador)
 ├── fuente\               código de Odoo (no se versiona)
 └── .venv\                entorno virtual (no se versiona)
 ```
@@ -77,18 +83,23 @@ ODOO-ABC\
 - Git.
 - **Python 3.12** (no 3.13, ver incidencia 1): `winget install Python.Python.3.12`. Convive
   con otras versiones.
-- PostgreSQL con codificación UTF8.
+- PostgreSQL con la autenticación por contraseña del instalador (`scram-sha-256`). La
+  codificación del servidor no importa: `crear_base.bat` crea la base en UTF8 de todos modos.
 - **wkhtmltopdf 0.12.6** para los PDF: `winget install wkhtmltopdf.wkhtmltox`. Queda en
   `C:\Program Files\wkhtmltopdf\bin` (es el `bin_path` de `odoo.conf`).
 
 ### Pasos
 
 1. **Usuario de PostgreSQL.** Odoo no acepta conectarse como `postgres`, así que se crea un
-   usuario propio que puede crear bases pero no es superusuario:
+   usuario propio, con contraseña, que puede crear bases pero no es superusuario:
 
    ```sql
-   CREATE ROLE odoo18 LOGIN CREATEDB NOSUPERUSER;
+   CREATE ROLE odoo18 LOGIN CREATEDB NOSUPERUSER PASSWORD 'una-clave-larga';
    ```
+
+   La contraseña se guarda en `pgpass.conf` (copia de `pgpass.conf.example`), que no se
+   versiona. Si `pg_hba.conf` del equipo está en `trust`, `bd\quitar_trust.ps1` hace todo
+   esto solo (ver incidencia 9).
 
 2. **Código y dependencias** (`clonar_odoo.bat`):
 
@@ -104,26 +115,39 @@ ODOO-ABC\
 
 3. **Configuración** (`odoo.conf`): rutas de addons (las del repositorio y `addons\`),
    conexión a PostgreSQL con `odoo18`, base `abc` con `dbfilter = ^abc$` y `list_db = False`,
-   puerto 8070 solo en `127.0.0.1`, `db_template = template1`, sin datos de demostración y la
-   ruta de wkhtmltopdf.
+   puerto 8070 solo en `127.0.0.1`, sin datos de demostración y la ruta de wkhtmltopdf.
 
-4. **Primer arranque**, que crea la base `abc` e instala el módulo `base`:
+4. **Base de datos** (`crear_base.bat`). La base no la crea Odoo, sino `bd\crear_base.py`:
+
+   ```sql
+   CREATE DATABASE abc TEMPLATE template0 ENCODING 'UTF8'
+          LC_COLLATE 'Spanish_Peru.1252' LC_CTYPE 'Spanish_Peru.1252';
+   ```
+
+   El locale se lee del servidor, así que en otra PC puede ser otro, pero siempre es el mismo
+   en collate y en ctype. Desde `template0` la base nace en UTF8 aunque PostgreSQL se haya
+   instalado en WIN1252 (el caso del docente). Si la base ya existe, el script solo comprueba
+   que esté en UTF8.
+
+5. **Primer arranque**, que instala el módulo `base` en la base vacía:
 
    ```bat
    iniciar_odoo.bat -i base --stop-after-init
    ```
 
-5. **Localización Perú:** `configurar_peru.bat`.
+6. **Localización Perú:** `configurar_peru.bat`.
 
-6. **Uso normal:** `iniciar_odoo.bat` y abrir http://localhost:8070. Usuario inicial
+7. **Uso normal:** `iniciar_odoo.bat` y abrir http://localhost:8070. Usuario inicial
    `admin` / `admin`: **cambiar la contraseña al entrar** (Preferencias → Seguridad).
 
 ### Contraseñas en la instalación local
 
 `odoo.conf` se versiona, así que no guarda ninguna contraseña:
 
-- PostgreSQL acepta al usuario `odoo18` sin contraseña solo desde este equipo (`trust` en
-  `pg_hba.conf` para `127.0.0.1`), y Odoo escucha solo en `127.0.0.1`.
+- PostgreSQL pide contraseña a `odoo18` (`scram-sha-256`). La contraseña está en
+  `pgpass.conf`, que no se versiona; los `.bat` la indican con `PGPASSFILE` y la lee libpq,
+  así que no aparece en `odoo.conf` ni en la línea de comandos.
+- Odoo escucha solo en `127.0.0.1`.
 - Con `list_db = False` el gestor de bases web está apagado, así que no hace falta una
   contraseña maestra (`admin_passwd`).
 
@@ -210,12 +234,13 @@ Pendiente en Ajustes → Empresa: RUC, dirección y logo reales de ABC (hoy el P
 |---|---|---|---|
 | 1 | `pip install -r requirements.txt` falla en `rl-renderPM` | En Windows, Odoo 18 exige `rl-renderPM 4.0.3` (códigos de barras y QR en PDF), que solo tiene versión compilada hasta Python 3.12. Con 3.13 pip intenta compilarla y no hay compilador de C | Instalar Python 3.12 junto al 3.13 y crear `.venv` con `py -3.12` |
 | 2 | Texto con tildes enviado a PostgreSQL desde la consola: *"secuencia de bytes no válida para codificación UTF8"* | La consola de Windows envía el texto en otra codificación (misma familia que el problema WIN1252) | El servidor y las bases están en UTF8; no afecta a Odoo. En Docker se fija UTF8 al crear el clúster |
-| 3 | Primer arranque: *"los ordenamientos (collation) con valores collate y ctype diferentes no están soportados en esta plataforma"* | Odoo crea la base desde `template0` con `LC_COLLATE 'C'`, mientras `LC_CTYPE` queda en `Spanish_Peru.1252`. PostgreSQL en Windows no admite esa mezcla | `db_template = template1` en `odoo.conf`: la base hereda UTF8 y `Spanish_Peru.1252` en ambos valores. Se borró la base fallida y se repitió el arranque. En Docker (Linux) no ocurre: la base queda con `C` / `C.UTF-8`, combinación válida allí |
+| 3 | Primer arranque: *"los ordenamientos (collation) con valores collate y ctype diferentes no están soportados en esta plataforma"* | Odoo crea la base desde `template0` con `LC_COLLATE 'C'`, mientras `LC_CTYPE` queda en `Spanish_Peru.1252`. PostgreSQL en Windows no admite esa mezcla | Primero se usó `db_template = template1`, que funciona aquí porque `template1` está en UTF8, pero depende de cómo se instaló el servidor. **Corrección final:** `crear_base.bat` crea la base desde `template0` con `ENCODING 'UTF8'` y el mismo locale en collate y ctype; Odoo solo la inicializa. En Docker (Linux) no ocurre: la base queda con `C` / `C.UTF-8`, combinación válida allí |
 | 4 | Los PDF dependían del Odoo 19 instalado | `bin_path` apuntaba al wkhtmltopdf de `C:\Program Files\Odoo 19...\thirdparty`; al desinstalar el Odoo 19 se perderían los PDF | wkhtmltopdf 0.12.6 instalado aparte con winget y `bin_path = C:\Program Files\wkhtmltopdf\bin`. Odoo lo confirma en el log: *"Will use the Wkhtmltopdf binary at ..."* |
 | 5 | La localización peruana no se aplica si se instala Facturación primero | El plan contable se elige por el país de la empresa al instalar `account`; sin país se carga el genérico y no se puede cambiar después | `configurar_peru.py` fija país Perú y PEN antes de instalar los módulos |
 | 6 | Factura en PDF salió en inglés ("Invoice", fecha 11/22/2026) | Odoo imprime cada documento en el idioma del cliente, y el cliente quedó en `en_US` | `configurar_peru.py` fija `es_PE` como idioma por defecto de los contactos (`ir.default`); el cliente se pasó a `es_PE` y el PDF salió como "Factura", 22/11/2026 |
 | 7 | Docker: *"wkhtmltopdf: Exit with code 1 due to network error: ConnectionRefusedError"* | wkhtmltopdf baja los estilos desde `web.base.url`, que Odoo toma del navegador (`127.0.0.1:8071`); esa dirección no existe dentro del contenedor | Parámetro `report.url = http://localhost:8069` (variable `ODOO_REPORT_URL` del compose) |
 | 8 | `configurar_peru.bat` podía leer mal el script (tildes) | La consola de Windows usa cp1252 y el script está en UTF-8 | `set PYTHONUTF8=1` en el `.bat`. Del mismo modo, al pasar scripts por tubería con PowerShell 5.1 se añade un BOM (`U+FEFF`): usar `cmd` o Bash |
+| 9 | En la instalación local, `odoo18` entraba a PostgreSQL sin contraseña (observación de la revisión) | `pg_hba.conf` del equipo tenía `trust` para todas las conexiones locales | `bd\quitar_trust.ps1`: contraseña aleatoria para `odoo18`, guardada en `pgpass.conf`, y reglas `scram-sha-256` para `odoo18` antes de las de `trust`. Las demás reglas no se tocaron, para no cortar el acceso del Odoo 19 de binarios |
 
 ## Binarios (Odoo 19) frente a fuentes (Odoo 18)
 

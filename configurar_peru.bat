@@ -9,6 +9,12 @@ if not exist .venv\Scripts\python.exe (
     pause
     exit /b 1
 )
+if not exist pgpass.conf (
+    echo Falta pgpass.conf con la contrasena de PostgreSQL. Ver pgpass.conf.example
+    pause
+    exit /b 1
+)
+set "PGPASSFILE=%~dp0pgpass.conf"
 rem El script esta en UTF-8 (tildes); sin esto Python lo leeria como cp1252, el de la consola.
 set PYTHONUTF8=1
 .venv\Scripts\python.exe fuente\odoo-bin shell -c odoo.conf --no-http < peru\configurar_peru.py || goto error

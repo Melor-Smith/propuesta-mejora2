@@ -1,0 +1,5 @@
+# Contraseña de PostgreSQL para la instalación local (formato de libpq).
+# Copiar como pgpass.conf (NO se versiona) y reemplazar CAMBIAR por la contraseña de odoo18.
+# Los .bat lo indican con PGPASSFILE; así la contraseña no va en odoo.conf ni en la consola.
+# Formato: servidor:puerto:base:usuario:contraseña   (* = cualquier base)
+127.0.0.1:5432:*:odoo18:CAMBIAR
